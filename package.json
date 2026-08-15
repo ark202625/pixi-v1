@@ -1,0 +1,16 @@
+{
+  "name": "pixi-bot",
+  "version": "1.0.0",
+  "description": "Minecraft Java Edition bot with in-game chat controls",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "mineflayer": "^4.20.1",
+    "mineflayer-pathfinder": "^2.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
