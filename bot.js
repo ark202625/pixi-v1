@@ -1,3 +1,12 @@
+const http = require('http');
+const port = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot is active!\n');
+}).listen(port, () => {
+  console.log(`Keep-alive server running on port ${port}`);
+});
 const mineflayer = require('mineflayer');
 const fs = require('fs');
 const path = require('path');
