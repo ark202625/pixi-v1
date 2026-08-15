@@ -1,144 +1,65 @@
 const http = require('http');
-const port = process.env.PORT || 3000;
+const mineflayer = require('mineflayer');
 
+// 1. Keep-alive server for Render free tier
+const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is active!\n');
+  res.end('Pixi Bot is active!\n');
 }).listen(port, () => {
   console.log(`Keep-alive server running on port ${port}`);
 });
-const mineflayer = require('mineflayer');
-const fs = require('fs');
-const path = require('path');
 
-const HOST = process.env.MC_HOST || 'piximc.aternos.me';
-const PORT = parseInt(process.env.MC_PORT || '25565');
-const USERNAME = process.env.MC_USERNAME || 'pixi';
+// 2. Bot configuration using Environment Variables with fallbacks
+const botOptions = {
+  host: process.env.MC_HOST || 'bottest-2inx.aternos.me',
+  port: parseInt(process.env.MC_PORT) || 12736,
+  username: process.env.MC_USERNAME || 'pixi',
+  version: process.env.MC_VERSION || false // Auto-detect version if not set
+};
 
-const COMMANDS_FILE = path.join(__dirname, 'commands.json');
+function createPixiBot() {
+  console.log(`Connecting to ${botOptions.host}:${botOptions.port} as ${botOptions.username}...`);
+  const bot = mineflayer.createBot(botOptions);
 
-let tempShortcuts = {};
-let permShortcuts = {};
-
-function loadPermShortcuts() {
-  try {
-    if (fs.existsSync(COMMANDS_FILE)) {
-      permShortcuts = JSON.parse(fs.readFileSync(COMMANDS_FILE, 'utf8'));
-    }
-  } catch (e) {
-    console.error('Failed to load permanent shortcuts:', e);
-  }
-}
-
-function savePermShortcuts() {
-  try {
-    fs.writeFileSync(COMMANDS_FILE, JSON.stringify(permShortcuts, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Failed to save permanent shortcuts:', e);
-  }
-}
-
-loadPermShortcuts();
-
-let bot;
-let currentInterval = null;
-
-function stopCurrentAction() {
-  if (currentInterval) {
-    clearInterval(currentInterval);
-    currentInterval = null;
-  }
-}
-
-function createBot() {
-  console.log(`Connecting to ${HOST}:${PORT} as ${USERNAME} (Offline Mode)...`);
-
-  bot = mineflayer.createBot({
-    host: HOST,
-    port: PORT,
-    username: USERNAME,
-    auth: 'offline'
+  // When Pixi successfully joins the server
+  bot.on('login', () => {
+    console.log(`[Pixi] Successfully logged into ${botOptions.host}!`);
   });
 
+  // Automatically apply skin on spawn if configured for SkinsRestorer
+  bot.on('spawn', () => {
+    console.log('[Pixi] Spawned in world.');
+  });
+
+  // Chat listener for in-game commands
   bot.on('chat', (username, message) => {
-    if (!message || typeof message !== 'string') return;
+    if (username === bot.username) return;
 
-    if (message.startsWith('*all 0') || message.startsWith('*pixi 0')) {
-      stopCurrentAction();
-      bot.chat('Stopped all tasks.');
-      return;
+    // Command: !ping
+    if (message === '!ping') {
+      bot.chat(`Pong! Pixi is online and responsive.`);
     }
 
-    if (!message.startsWith('*pixi')) return;
-
-    let args = message.trim().split(' ');
-    let cmd = args[1];
-
-    if (!cmd) return;
-
-    if (tempShortcuts[cmd]) {
-      cmd = tempShortcuts[cmd];
-    } else if (permShortcuts[cmd]) {
-      cmd = permShortcuts[cmd];
+    // Command: !skin (for SkinsRestorer on cracked servers)
+    if (message.startsWith('!skin ')) {
+      const skinName = message.split(' ')[1];
+      if (skinName) {
+        bot.chat(`/skin ${skinName}`);
+        bot.chat(`Attempting to set skin to: ${skinName}`);
+      }
     }
-
-    handleCommand(cmd, args.slice(2));
   });
 
-  bot.on('kicked', console.log);
-  bot.on('error', console.error);
+  // Handle errors and automatic reconnection
+  bot.on('kicked', (reason) => console.log('[Pixi Kicked]:', reason));
+  bot.on('error', (err) => console.log('[Pixi Error]:', err));
 
   bot.on('end', () => {
-    console.log('Bot disconnected. Reconnecting in 10 seconds...');
-    stopCurrentAction();
-    setTimeout(createBot, 10000);
+    console.log('[Pixi] Disconnected. Reconnecting in 10 seconds...');
+    setTimeout(createPixiBot, 10000);
   });
 }
 
-function handleCommand(cmd, extraArgs) {
-  if (cmd === 'guide1') {
-    bot.chat('Actions: afk!11, kill<name>!11, mine!11');
-  } else if (cmd === 'guide2') {
-    bot.chat('Items: dropitem!01, dropinv!01, equiparmor!01, droparmor!01');
-  } else if (cmd === 'guide3') {
-    bot.chat('Shortcuts: perm <name> <cmd>, temp <name> <cmd>, del <name>, list');
-  } else if (cmd === 'dropitem!01') {
-    const item = bot.heldItem;
-    if (item) {
-      bot.tossStack(item);
-      bot.chat('Dropped held item.');
-    } else {
-      bot.chat('Not holding any item.');
-    }
-  } else if (cmd === 'dropinv!01') {
-    bot.inventory.items().forEach((item) => bot.tossStack(item));
-    bot.chat('Dropped inventory contents.');
-  } else if (cmd.startsWith('perm')) {
-    const name = extraArgs[0];
-    const target = extraArgs.slice(1).join(' ');
-    if (name && target) {
-      permShortcuts[name] = target;
-      savePermShortcuts();
-      bot.chat(`Saved permanent shortcut: ${name} -> ${target}`);
-    }
-  } else if (cmd.startsWith('temp')) {
-    const name = extraArgs[0];
-    const target = extraArgs.slice(1).join(' ');
-    if (name && target) {
-      tempShortcuts[name] = target;
-      bot.chat(`Saved temp shortcut: ${name} -> ${target}`);
-    }
-  } else if (cmd === 'list') {
-    const permKeys = Object.keys(permShortcuts).join(', ') || 'None';
-    const tempKeys = Object.keys(tempShortcuts).join(', ') || 'None';
-    bot.chat(`Perm: [${permKeys}] | Temp: [${tempKeys}]`);
-  } else if (cmd.startsWith('del')) {
-    const name = extraArgs[0];
-    delete permShortcuts[name];
-    delete tempShortcuts[name];
-    savePermShortcuts();
-    bot.chat(`Deleted shortcut: ${name}`);
-  }
-}
-
-createBot();
+// Start Pixi
+createPixiBot();
