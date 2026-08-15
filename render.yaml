@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pixi-bot
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MC_HOST
+        value: piximc.aternos.me
+      - key: MC_PORT
+        value: "25565"
+      - key: MC_USERNAME
+        value: pixi
